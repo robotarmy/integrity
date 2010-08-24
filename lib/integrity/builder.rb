@@ -47,7 +47,8 @@ module Integrity
     end
 
     def run
-      cmd = "(cd #{repo.directory} && #{@build.project.command} 2>&1)"
+      @dir = repo.directory
+      cmd = normalize(@build.project.command)
       IO.popen(cmd, "r") { |io| @output = io.read }
       @status = $?.success?
     end
@@ -61,5 +62,26 @@ module Integrity
     def commit
       @build.commit.identifier
     end
+
+    def normalize(cmd)
+      if @dir
+        "(#{pre_bundler_env} && cd #{@dir} && #{cmd} 2>&1)"
+      else
+        "(#{pre_bundler_env} && #{cmd} 2>&1)"
+      end
+    end
+
+    private
+      def pre_bundler_env
+        "RUBYOPT=#{pre_bundler_rubyopt} PATH=#{pre_bundler_path}"
+      end
+
+      def pre_bundler_path
+        ENV['PATH'] && ENV["PATH"].split(":").reject { |path| path.include?("bundle") }.join(":")
+      end
+
+      def pre_bundler_rubyopt
+        ENV['RUBYOPT'] && ENV["RUBYOPT"].split.reject { |opt| opt.include?("bundle") }.join(" ")
+      end
   end
 end
