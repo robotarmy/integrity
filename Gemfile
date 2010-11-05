@@ -16,11 +16,12 @@ gem "rake"
 gem "haml", "2.2.17"
 gem "thor", "0.9.9"
 gem "addressable", "2.1.1"
-gem "json", "1.1.9"
 gem "sinatra", "1.0.0"
 gem "sinatra-authorization", "1.0.0"
 gem "bcat", "~>0.5"
-gem "rack", "1.1.0"
+gem "integrity-subversion", :git => 'https://github.com/bkoski/integrity-subversion.git'
+# Required to deploy on Heroku
+# gem "do_postgres", "0.10.1"
 
 # These are dependencies for the various notifiers. Uncomment as appropriate.
 # = Email
@@ -30,8 +31,6 @@ gem "rack", "1.1.0"
 # = Campfire
 # gem "broach", :git => "git://github.com/Manfred/broach.git"
 # gem "nap", :git => "git://github.com/qrush/nap.git"
-# = AMQP
-# gem "bunny"
 
 # = Dependencies for the :dj builder
 # gem "activerecord"
@@ -66,7 +65,6 @@ group :test do
   gem "sinatra-ditties"
   gem "broach", :git => "git://github.com/Manfred/broach.git"
   gem "nap", :git => "git://github.com/qrush/nap.git"
-  gem "bunny"
   gem "webmock"
   gem "turn"
 end

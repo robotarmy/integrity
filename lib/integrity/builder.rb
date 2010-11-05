@@ -1,64 +1,87 @@
 module Integrity
   class Builder
-    def self.build(_build, directory, logger)
-      new(_build, directory, logger).build
+    def self.build(b)
+      new(b).build
     end
 
-    def initialize(build, directory, logger)
-      @build     = build
-      @directory = directory
-      @logger    = logger
+    def initialize(build)
+      @build  = build
+      @status = false
+      @output = ""
     end
 
     def build
       start
       run
       complete
-      notify
     end
 
     def start
-      @logger.info "Started building #{repo.uri} at #{commit}"
-      checkout.run
-      @build.update(:started_at => Time.now, :commit => checkout.metadata)
-    end
+      Integrity.log "Started building #{@build.project.uri} at #{commit}"
 
-    def run
-      @result = checkout.run_in_dir(command)
-    end
+      repo.checkout
 
-    def complete
-      @logger.info "Build #{commit} exited with #{@result.success} got:\n #{@result.output}"
+      metadata = repo.metadata
 
       @build.update(
-        :completed_at => Time.now,
-        :successful   => @result.success,
-        :output       => @result.output
+        :started_at => Time.now,
+        :commit     => {
+          :identifier   => metadata["id"],
+          :message      => metadata["message"],
+          :author       => metadata["author"],
+          :committed_at => metadata["timestamp"]
+        }
       )
     end
 
-    def notify
-      @build.notify
+    def complete
+      Integrity.log "Build #{commit} exited with #{@status} got:\n #{@output}"
+
+      @build.update!(
+        :completed_at => Time.now,
+        :successful   => @status,
+        :output       => @output
+      )
+
+      @build.project.enabled_notifiers.each { |n| n.notify_of_build(@build) }
     end
 
-    def checkout
-      @checkout ||= Checkout.new(repo, commit, directory, @logger)
-    end
-
-    def directory
-      @_directory ||= @directory.join(@build.id.to_s)
+    def run
+      @dir = repo.directory
+      cmd = normalize(@build.project.command)
+      IO.popen(cmd, "r") { |io| @output = io.read }
+      @status = $?.success?
     end
 
     def repo
-      @build.repo
-    end
-
-    def command
-      @build.command
+      @repo ||= Repository.new(
+        @build.id, @build.project.uri, @build.project.branch, commit
+      )
     end
 
     def commit
-      @build.sha1
+      @build.commit.identifier
     end
+
+    def normalize(cmd)
+      if @dir
+        "(#{pre_bundler_env} && cd #{@dir} && #{cmd} 2>&1)"
+      else
+        "(#{pre_bundler_env} && #{cmd} 2>&1)"
+      end
+    end
+
+    private
+      def pre_bundler_env
+        "RUBYOPT=#{pre_bundler_rubyopt} PATH=#{pre_bundler_path}"
+      end
+
+      def pre_bundler_path
+        ENV['PATH'] && ENV["PATH"].split(":").reject { |path| path.include?("bundle") }.join(":")
+      end
+
+      def pre_bundler_rubyopt
+        ENV['RUBYOPT'] && ENV["RUBYOPT"].split.reject { |opt| opt.include?("bundle") }.join(" ")
+      end
   end
 end
